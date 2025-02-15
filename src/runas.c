@@ -54,46 +54,6 @@ DWORD Proc_getRunningState(const wchar_t *exeName) {
   return -1;
 }
 
-/*
-DWORD proc_getFileRunningState(LPCSTR exePath) {
-  PROCESSENTRY32 pe32;
-  HANDLE hProcessSnap;
-  BOOL bMore;
-  int l1, l2, l3;
-  char buffer[MAX_PATH];
-  char *fileName = strrchr(exePath, '\\');
-
-  if (!fileName)
-    fileName = (char*)exePath;
-  else
-    fileName++;
-
-  pe32.dwSize = sizeof(pe32);
-  hProcessSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-  if (hProcessSnap == INVALID_HANDLE_VALUE)
-    return -1;
-  bMore = Process32First(hProcessSnap, &pe32);
-  l1 = strlen(fileName), l3 = strlen(exePath);
-
-  while (bMore) {
-    l2 = strlen(pe32.szExeFile);
-    if (!memcmp(pe32.szExeFile, fileName, l1 > l2 ? l2 : l1)) {
-      if (!proc_getExeFilePath(pe32.th32ProcessID, buffer, MAX_PATH))
-        continue;
-      else {
-        l2 = strlen(buffer);
-        if (!memcmp(buffer, exePath, l1 > l3 ? l3 : l1)) {
-          CloseHandle(hProcessSnap);
-          return pe32.th32ProcessID;
-        }
-      }
-    }
-    bMore = Process32Next(hProcessSnap, &pe32);
-  }
-  CloseHandle(hProcessSnap);
-  return -1;
-}*/
-
 BOOL Proc_getExeFilePath(DWORD procId, char* path, int bufferSize) {
   HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, procId);
   if (hProcess == NULL)
@@ -123,4 +83,24 @@ BOOL Proc_setProcessSuspend(DWORD dwProcessID, BOOL fSuspend) {
   CloseHandle(hSnapshot);
 
   return TRUE;
+}
+
+BOOL Proc_detectRunAsAdmin(int *pargc) {
+  wchar_t *r
+    , *s = GetCommandLineW()
+    , **argv = CommandLineToArgvW(s, pargc)
+    , buf[MAX_PATH];
+  if (!Proc_isRunAsAdmin(NULL)) {
+    GetModuleFileNameW(NULL, buf, MAX_PATH);
+    size_t l = wcslen(buf);
+    if (s[l] == L' ')
+      r = s + l;
+    else
+      r = s + l + 2;
+    wprintf(L"%s", argv[0]);
+    // Reopen with admin, with original argv
+    Proc_runAsAdmin(argv[0], r, SW_SHOWNORMAL);
+    return 1;
+  }
+  return 0;
 }

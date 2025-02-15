@@ -2,6 +2,7 @@
 
 IMMDevice *device = NULL;
 IAudioSessionEnumerator *sessionEnumerator = NULL;
+DWORD skyGamePID = -1;
 
 // Gets the default render device for the console role
 bool getDefaultDevice(IMMDevice **device) {
@@ -165,7 +166,7 @@ bool setSessionVolume(IAudioSessionEnumerator *enumerator, wchar_t *sessionName,
 
     if (sessionName != NULL && wcscmp(sessionName, buffer))
       continue;
-    
+
     wprintf(L"Name: %s\n", sessionName);
 
     // Get and print session state
@@ -211,7 +212,6 @@ Exit:
   return success;
 }
 
-
 DWORD WINAPI hotkeyThread(LPVOID lpParam) {
   MSG msg;
 
@@ -223,6 +223,14 @@ DWORD WINAPI hotkeyThread(LPVOID lpParam) {
 
   while (GetMessageW(&msg, NULL, 0, 0)) {
     if (msg.message == WM_HOTKEY) {
+      // Ensure the game window is active
+      HWND foregroundWindow = GetForegroundWindow();
+      DWORD processId;
+      GetWindowThreadProcessId(foregroundWindow, &processId);
+      printf("%d, %d\n", skyGamePID, processId);
+      if (skyGamePID == -1 || skyGamePID != processId)
+        continue;
+
       // Get the default render device
       if (!getDefaultDevice(&device))
         goto Exit;
@@ -258,41 +266,46 @@ Exit:
 int main(int argc, char *argv_[]) {
   HRESULT hr;
   DWORD threadId;
-  HANDLE hThread;
-  wchar_t *r
-    , *s = GetCommandLineW()
-    , **argv = CommandLineToArgvW(s, &argc)
-    , buf[MAX_PATH];
+  HANDLE hThread, mutexHandle;
+  wchar_t buf[MAX_PATH];
+  int ret = 0;
 
-  // Ensure to run as admin
-  if (!Proc_isRunAsAdmin(NULL)) {
-    GetModuleFileNameW(NULL, buf, MAX_PATH);
-    size_t l = wcslen(buf);
-    if (s[l] == L' ')
-      r = s + l;
-    else
-      r = s + l + 2;
-    wprintf(L"%s", argv[0]);
-    // Reopen with admin, with original argv
-    Proc_runAsAdmin(argv[0], r, SW_SHOWNORMAL);
+  // Only one instance can be running
+  mutexHandle = CreateMutexW(NULL, TRUE, L"__SKY_VOLRST__");
+  if (GetLastError() == ERROR_ALREADY_EXISTS) {
+    ShowWindow(GetConsoleWindow(), SW_HIDE);
+    MessageBoxW(
+      NULL,
+      L"An instance has already running.",
+      L"Instance exists",
+      MB_OK
+    );
     return 1;
   }
+
+  if (Proc_detectRunAsAdmin(&argc))
+    return 1;
+  
+  ShowWindow(GetConsoleWindow(), SW_HIDE);
 
   // Initialise COM
   hr = CoInitializeEx(NULL, COINIT_MULTITHREADED);
   if (FAILED(hr)) {
-    printf("Unable to initialize COM: %x\n", hr);
+    _swprintf(buf, L"Unable to initialize COM: %x\n", hr);
+    MessageBoxW(NULL, buf, L"ERROR", MB_ICONERROR);
+    ret = 1;
     goto Exit;
   }
 
   hThread = CreateThread(NULL, 0, hotkeyThread, 0, 0, &threadId);
   if (!hThread) {
     MessageBoxW(NULL, L"Create thread failed", L"ERROR", MB_ICONERROR);
-    return 1;
+    ret = 1;
+    goto Exit;
   }
 
   // Waiting for the game
-  while (Proc_getRunningState(L"Sky.exe") != -1)
+  while ((skyGamePID = Proc_getRunningState(L"Sky.exe")) != -1)
     Sleep(500);
 
   // Terminate thread
@@ -303,5 +316,7 @@ Exit:
   RELEASE(device);
   RELEASE(sessionEnumerator);
   CoUninitialize();
-  return 0;
+  ReleaseMutex(mutexHandle);
+  CloseHandle(mutexHandle);
+  return ret;
 }
