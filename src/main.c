@@ -84,8 +84,8 @@ int main(int argc, char *argv_[]) {
 
   if (Proc_detectRunAsAdmin(&argc))
     return 1;
-  
-  ShowWindow(GetConsoleWindow(), SW_HIDE);
+
+  FreeConsole();
 
   // Initialise COM
   hr = CoInitializeEx(NULL, COINIT_MULTITHREADED);
