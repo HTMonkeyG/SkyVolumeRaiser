@@ -69,10 +69,11 @@ int main(int argc, char *argv_[]) {
   wchar_t buf[MAX_PATH];
   int ret = 0;
 
+  FreeConsole();
+
   // Only one instance can be running
   mutexHandle = CreateMutexW(NULL, TRUE, L"__SKY_VOLRST__");
   if (GetLastError() == ERROR_ALREADY_EXISTS) {
-    ShowWindow(GetConsoleWindow(), SW_HIDE);
     MessageBoxW(
       NULL,
       L"An instance has already running.",
@@ -84,8 +85,6 @@ int main(int argc, char *argv_[]) {
 
   if (Proc_detectRunAsAdmin(&argc))
     return 1;
-
-  FreeConsole();
 
   // Initialise COM
   hr = CoInitializeEx(NULL, COINIT_MULTITHREADED);
@@ -102,6 +101,9 @@ int main(int argc, char *argv_[]) {
     ret = 1;
     goto Exit;
   }
+
+  if (Proc_getRunningState(L"Sky.exe") == -1)
+    MessageBoxW(NULL, L"Game is not running", L"ERROR", MB_ICONERROR);
 
   // Waiting for the game
   while ((skyGamePID = Proc_getRunningState(L"Sky.exe")) != -1)
