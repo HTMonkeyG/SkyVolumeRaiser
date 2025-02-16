@@ -78,7 +78,7 @@ int main(int argc, char *argv_[]) {
       NULL,
       L"An instance has already running.",
       L"Instance exists",
-      MB_OK
+      MB_ICONERROR
     );
     return 1;
   }

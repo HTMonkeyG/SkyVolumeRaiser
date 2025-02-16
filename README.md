@@ -1,4 +1,7 @@
 # 光遇音量合成重置器 (Sky:CoL Volume Raiser)
+<div style="text-align:center">
+  <img src="./img/skycol-volrst-ico.ico">
+</div>
 &emsp;一个用于重置光遇国服PC端的音量合成器设置的小工具。
 
 ## 为什么要用本软件
