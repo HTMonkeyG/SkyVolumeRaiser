@@ -1,8 +1,5 @@
 # 光遇音量合成重置器 (Sky:CoL Volume Raiser)
-<div style="text-align:center">
-  <img src="./img/skycol-volrst-ico.ico">
-</div>
-&emsp;一个用于重置光遇国服PC端的音量合成器设置的小工具。
+<img src="./img/skycol-volrst-ico.ico">&emsp;一个用于重置光遇国服PC端的音量合成器设置的小工具。
 
 ## 为什么要用本软件
 &emsp;由于国服光遇PC端的共享音符的特性，在游戏内网易云音乐修改音量时，游戏事实上修改的是系统的音量合成器设置，导致游戏整体的音量被修改。
