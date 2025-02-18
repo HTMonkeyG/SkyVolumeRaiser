@@ -44,7 +44,7 @@ DWORD WINAPI hotkeyThread(LPVOID lpParam) {
             continue;
           doSetVolume(L"Sky.exe", &previousVol, 1.0f);
           undoResetFlag = 1;
-          timerID = SetTimer(NULL, 1, 1000, NULL);
+          timerID = SetTimer(NULL, 1, 3000, NULL);
           break;
         } else
           doSetVolume(L"Sky.exe", &previousVol, previousVol);
