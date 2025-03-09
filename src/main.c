@@ -1,6 +1,7 @@
 #include "main.h"
 
 DWORD skyGamePID = -1;
+HANDLE hEvent;
 int undoResetFlag = 0;
 float previousVol = 0.;
 
@@ -28,10 +29,9 @@ DWORD WINAPI hotkeyThread(LPVOID lpParam) {
   DWORD timerID;
 
   // Alt + Shift + R
-  if (!RegisterHotKey(NULL, 1, MOD_ALT | MOD_SHIFT, 'R')) {
-    MessageBoxW(NULL, L"Register hotkey failed", L"ERROR", MB_ICONERROR);
+  if (!RegisterHotKey(NULL, 1, MOD_ALT | MOD_SHIFT, 'R'))
     return 1;
-  }
+  SetEvent(hEvent);
 
   while (GetMessageW(&msg, NULL, 0, 0)) {
     switch (msg.message) {
@@ -95,9 +95,16 @@ int main(int argc, char *argv_[]) {
     goto Exit;
   }
 
+  hEvent = CreateEventW(NULL, 1, 0, L"__HOTKEY_REG__");
   hThread = CreateThread(NULL, 0, hotkeyThread, 0, 0, &threadId);
   if (!hThread) {
     MessageBoxW(NULL, L"Create thread failed", L"ERROR", MB_ICONERROR);
+    ret = 1;
+    goto Exit;
+  }
+
+  if (WaitForSingleObject(hEvent, 100) != WAIT_OBJECT_0) {
+    MessageBoxW(NULL, L"Register hotkey failed", L"ERROR", MB_ICONERROR);
     ret = 1;
     goto Exit;
   }
@@ -117,5 +124,6 @@ Exit:
   CoUninitialize();
   ReleaseMutex(mutexHandle);
   CloseHandle(mutexHandle);
+  CloseHandle(hEvent);
   return ret;
 }
