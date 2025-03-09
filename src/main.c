@@ -4,6 +4,34 @@ DWORD skyGamePID = -1;
 HANDLE hEvent;
 int undoResetFlag = 0;
 float previousVol = 0.;
+unsigned int hotkeyMod = 0
+  , hotkeyVK = 0
+  , undoTimeout = 0;
+
+void getArgvHotkey(int *pargc) {
+  wchar_t *s = GetCommandLineW()
+    , **wargv = CommandLineToArgvW(s, pargc);
+  
+  for (int i = 0; i < *pargc; i++) {
+    if (!wcscmp(wargv[i], L"-alt"))
+      hotkeyMod |= MOD_ALT;
+    else if (!wcscmp(wargv[i], L"-shift"))
+      hotkeyMod |= MOD_SHIFT;
+    else if (!wcscmp(wargv[i], L"-ctrl"))
+      hotkeyMod |= MOD_CONTROL;
+    else if (!memcmp(wargv[i], L"-vk", 3 * sizeof(wchar_t)))
+      hotkeyVK = wargv[i][3] & 0xFF;
+    else if (!wcscmp(wargv[i], L"-t") && i + 1 < *pargc)
+      swscanf(wargv[i + 1], L"%u", &undoTimeout);
+  }
+
+  if (!undoTimeout)
+    undoTimeout = 3000;
+  if (!hotkeyVK) {
+    hotkeyMod = MOD_ALT | MOD_SHIFT;
+    hotkeyVK = 'R';
+  }
+}
 
 bool doSetVolume(const wchar_t *exe, float *prevVol, float volume) {
   IMMDevice *device = NULL;
@@ -29,7 +57,7 @@ DWORD WINAPI hotkeyThread(LPVOID lpParam) {
   DWORD timerID;
 
   // Alt + Shift + R
-  if (!RegisterHotKey(NULL, 1, MOD_ALT | MOD_SHIFT, 'R'))
+  if (!RegisterHotKey(NULL, 1, hotkeyMod, hotkeyVK))
     return 1;
   SetEvent(hEvent);
 
@@ -85,6 +113,8 @@ int main(int argc, char *argv_[]) {
 
   if (Proc_detectRunAsAdmin(&argc))
     return 1;
+
+  getArgvHotkey(&argc);
 
   // Initialise COM
   hr = CoInitializeEx(NULL, COINIT_MULTITHREADED);
