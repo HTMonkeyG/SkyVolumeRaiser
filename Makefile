@@ -1,9 +1,10 @@
 DIST_DIR = dist
 SRC_DIR = ./src
 IMG_DIR = ./img
+XML_DIR = ./manifest
 
 SRC = $(wildcard $(SRC_DIR)/*.c)
-OBJ = $(patsubst %.c, $(DIST_DIR)/%.o, $(notdir $(SRC))) $(DIST_DIR)/icon.o
+OBJ = $(patsubst %.c, $(DIST_DIR)/%.o, $(notdir $(SRC))) $(DIST_DIR)/icon.o $(DIST_DIR)/manifest.o
 
 TARGET = SkyCoL-VolRst.exe
 BIN_TARGET = $(DIST_DIR)/$(TARGET)
@@ -19,6 +20,9 @@ $(DIST_DIR)/%.o:$(SRC_DIR)/%.c
 
 $(DIST_DIR)/icon.o: ./img/skycol-volrst-ico.ico $(IMG_DIR)/icon.rc
 	windres -i $(IMG_DIR)/icon.rc -o $(DIST_DIR)/icon.o
+
+$(DIST_DIR)/manifest.o: $(XML_DIR)/manifest.xml
+	windres -i $(XML_DIR)/manifest.rc -o $(DIST_DIR)/manifest.o
 
 clean:
 	del .\dist\*.o
