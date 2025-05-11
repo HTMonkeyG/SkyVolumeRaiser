@@ -26,4 +26,4 @@ SkyCoL-VolRst.exe [-alt] [-shift] [-ctrl] [-vk<key>] [-t <timeout>]
 &emsp;``-t <timeout>``为撤销音量重置的超时时间，单位为毫秒。默认值为3000。如``-t 1000``设置超时时间为1秒。不建议将超时时间设定至小于1秒。
 
 ## 编译方式
-&emsp;使用MinGW-64进行编译。克隆并切换至仓库，运行mingw-make.exe即可。
+&emsp;使用MinGW-64进行编译。克隆并切换至仓库根目录并新建dist文件夹，运行mingw-make.exe即可。
