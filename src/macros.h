@@ -14,7 +14,7 @@
 #define f32 float
 #define f64 double
 
-#define DEBUG_CONSOLE
+//#define DEBUG_CONSOLE
 
 #ifdef DEBUG_CONSOLE
 #define log(format, ...) printf(format, ##__VA_ARGS__)

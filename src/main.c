@@ -81,7 +81,7 @@ DWORD WINAPI hotkeyThread(LPVOID lpParam) {
 
       if (!undoResetFlag) {
         // Reset volume.
-        doSetVolume(processId, &previousVol, 1.0f);
+        doSetVolume(processId, &previousVol, targetVol);
         // Set undo flag and timer.
         undoResetFlag = 1;
         SetTimer(NULL, 1, 3000, NULL);
