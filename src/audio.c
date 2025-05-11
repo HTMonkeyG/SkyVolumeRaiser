@@ -1,124 +1,139 @@
 #include "audio.h"
 
 // Gets the default render device
-bool getDefaultDevice(IMMDevice **device) {
+i08 getDefaultDevice(IMMDevice **device) {
   HRESULT hr;
-  bool success = false;
+  i08 success = 0;
   IMMDeviceEnumerator *pEnumerator = NULL;
 
+  if (!device)
+    return 0;
+
   // Get a device enumerator
-  hr = CoCreateInstance(&CLSID_MMDeviceEnumerator, NULL, CLSCTX_INPROC_SERVER, &IID_IMMDeviceEnumerator, (void**)&pEnumerator);
+  hr = CoCreateInstance(
+    &CLSID_MMDeviceEnumerator,
+    NULL,
+    CLSCTX_INPROC_SERVER,
+    &IID_IMMDeviceEnumerator,
+    (void**)&pEnumerator
+  );
   if (FAILED(hr)) {
-    printf("Unable to instantiate device enumerator: %x\n", hr);
+    log("Unable to instantiate device enumerator: %lx\n", hr);
     goto Exit;
   }
 
   // Get the default audio device
-  hr = pEnumerator->lpVtbl->GetDefaultAudioEndpoint(pEnumerator, eRender, eConsole, device);
+  hr = pEnumerator->lpVtbl->GetDefaultAudioEndpoint(
+    pEnumerator,
+    eRender,
+    eConsole,
+    device
+  );
   if (FAILED(hr)) {
-    printf("Unable to retrive default audio device: %x\n", hr);
+    log("Unable to retrive default audio device: %lx\n", hr);
     goto Exit;
   }
 
-  success = true;
+  success = 1;
 Exit:
   RELEASE(pEnumerator);
   return success;
 }
 
 // Gets an AudioSessionEnumerator for the specified device
-bool getAudioSessionEnumerator(IMMDevice *device, IAudioSessionEnumerator **sessionEnumerator) {
+i08 getAudioSessionEnumerator(
+  IMMDevice *device,
+  IAudioSessionEnumerator **sessionEnumerator
+) {
   HRESULT hr;
   IAudioSessionManager2 *sessionManager2 = NULL;
-  bool success = false;
+  i08 success = 0;
+
+  if (!device || !sessionEnumerator)
+    return 0;
 
   // Get an AudioSessionManager2
-  hr = device->lpVtbl->Activate(device, &IID_IAudioSessionManager2, CLSCTX_INPROC_SERVER, NULL, (void **)&sessionManager2);
+  hr = device->lpVtbl->Activate(
+    device,
+    &IID_IAudioSessionManager2,
+    CLSCTX_INPROC_SERVER,
+    NULL,
+    (void **)&sessionManager2
+  );
   if (FAILED(hr)) {
-    printf("Unable to get session manager 2: %x\n", hr);
+    log("Unable to get session manager 2: 0x%lx\n", hr);
     goto Exit;
   }
 
   // Get a session enumerator
-  hr = sessionManager2->lpVtbl->GetSessionEnumerator(sessionManager2, sessionEnumerator);
+  hr = sessionManager2->lpVtbl->GetSessionEnumerator(
+    sessionManager2,
+    sessionEnumerator
+  );
   if (FAILED(hr)) {
-    printf("Unable to get session enumerator: %x\n", hr);
+    log("Unable to get session enumerator: 0x%lx\n", hr);
     goto Exit;
   }
 
-  success = true;
+  success = 1;
 Exit:
   RELEASE(sessionManager2);
   return success;
 }
 
-// Get the executable file name of session
-bool getSessionName(IAudioSessionControl *sessionControl, wchar_t *name) {
+i08 getSessionPid(IAudioSessionControl *sessionControl, DWORD *pid) {
   HRESULT hr;
   IAudioSessionControl2 *sessionControl2 = NULL;
-  HANDLE process = NULL;
-  bool success = false;
+  i08 success = 0;
 
-  // Get the session display name
-  PWSTR sessionName;
-  hr = sessionControl->lpVtbl->GetDisplayName(sessionControl, &sessionName);
+  if (!sessionControl || !pid)
+    return 0;
+
+  // Get the process name.
+  hr = sessionControl->lpVtbl->QueryInterface(
+    sessionControl,
+    &IID_IAudioSessionControl2,
+    (void **)&sessionControl2
+  );
   if (FAILED(hr)) {
-    printf("Unable to get session display name: %x\n", hr);
+    log("Unable to get session control 2 interface: 0x%lx\n", hr);
     goto Exit;
   }
 
-  // Print the session name
-  if (*sessionName)
-    _swprintf(name, L"%s", sessionName);
-  else {
-    // Or if null, the process name
-    hr = sessionControl->lpVtbl->QueryInterface(sessionControl, &IID_IAudioSessionControl2, (void **)&sessionControl2);
-    if (FAILED(hr)) {
-      printf("Unable to get session control 2 interface: %x\n", hr);
-      goto Exit;
-    }
-
-    DWORD processId;
-    hr = sessionControl2->lpVtbl->GetProcessId(sessionControl2, &processId);
-    if (FAILED(hr)) {
-      printf("Unable to get session process ID: %x\n", hr);
-      goto Exit;
-    }
-
-    process = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, false, processId);
-    if (process == NULL) {
-      printf("Unable to get process handle: %u\n", GetLastError());
-      goto Exit;
-    }
-
-    wchar_t processName[MAX_PATH] = L"Unknown"
-      , *p;
-    GetModuleFileNameExW(process, 0, processName, MAX_PATH);
-    if (!(p = wcsrchr(processName, L'\\') + 1) || !*p)
-      p = processName;
-    _swprintf(name, L"%s", p);
+  hr = sessionControl2->lpVtbl->GetProcessId(sessionControl2, pid);
+  if (FAILED(hr)) {
+    log("Unable to get session process ID: 0x%lx\n", hr);
+    goto Exit;
   }
 
-  success = true;
+  success = 1;
+
 Exit:
-  CoTaskMemFree(sessionName);
   RELEASE(sessionControl2);
-  CloseHandle(process);
   return success;
 }
 
-bool setSessionVolume(IAudioSessionEnumerator *enumerator, const wchar_t *sessionName, float *prevVol, float targetVol) {
+i08 setProcessVolume(
+  IAudioSessionEnumerator *enumerator,
+  DWORD processId,
+  float *prevVol,
+  float targetVol
+) {
+  i32 sessionCount;
   HRESULT hr;
   IAudioSessionControl *sessionControl = NULL;
   ISimpleAudioVolume *sessionSimpleVolume = NULL;
-  bool success = false;
-  wchar_t buffer[MAX_PATH];
+  DWORD currentPid;
+  f32 volume;
+  i08 success = 0;
 
-  // Get session count
-  int sessionCount;
+  if (!enumerator)
+    return 0;
+
+  // Get session count.
   hr = enumerator->lpVtbl->GetCount(enumerator, &sessionCount);
   if (FAILED(hr)) {
-    printf("Unable to get session count: %x\n", hr);
+    log("Unable to get session count: 0x%lx\n", hr);
     goto Exit;
   }
 
@@ -126,38 +141,45 @@ bool setSessionVolume(IAudioSessionEnumerator *enumerator, const wchar_t *sessio
     // Get audio session control
     hr = enumerator->lpVtbl->GetSession(enumerator, i, &sessionControl);
     if (FAILED(hr)) {
-      printf("Unable to get session control: %x\n", hr);
+      log("Unable to get session control: 0x%lx\n", hr);
       goto Exit;
     }
 
-    if (!getSessionName(sessionControl, buffer))
-      goto Exit;
-
-    if (sessionName != NULL && wcscmp(sessionName, buffer))
+    if (!getSessionPid(sessionControl, &currentPid) || currentPid != processId)
+      // Get session pid failed or not the specified session.
       continue;
 
-    wprintf(L"Name: %s\n", sessionName);
-
     // Get session volume control
-    hr = sessionControl->lpVtbl->QueryInterface(sessionControl, &IID_ISimpleAudioVolume, (void **)&sessionSimpleVolume);
+    hr = sessionControl->lpVtbl->QueryInterface(
+      sessionControl,
+      &IID_ISimpleAudioVolume,
+      (void **)&sessionSimpleVolume
+    );
     if (FAILED(hr)) {
-      printf("Unable to get session volume controls: %x\n", hr);
+      log("Unable to get session volume controls: 0x%lx\n", hr);
       goto Exit;
     }
 
     // Get current volume of session
-    float volume;
-    hr = sessionSimpleVolume->lpVtbl->GetMasterVolume(sessionSimpleVolume, &volume);
+    hr = sessionSimpleVolume->lpVtbl->GetMasterVolume(
+      sessionSimpleVolume,
+      &volume
+    );
     if (FAILED(hr)) {
-      printf("Unable to get session volume: %x\n", hr);
+      log("Unable to get session volume: 0x%lx\n", hr);
       goto Exit;
     }
-    *prevVol = volume;
+    if (prevVol)
+      *prevVol = volume;
 
     // Set session volume to max
-    hr = sessionSimpleVolume->lpVtbl->SetMasterVolume(sessionSimpleVolume, targetVol, NULL);
+    hr = sessionSimpleVolume->lpVtbl->SetMasterVolume(
+      sessionSimpleVolume,
+      targetVol,
+      NULL
+    );
     if (FAILED(hr)) {
-      printf("Unable to set session volume: %x\n", hr);
+      log("Unable to set session volume: 0x%lx\n", hr);
       goto Exit;
     }
 
@@ -165,7 +187,7 @@ bool setSessionVolume(IAudioSessionEnumerator *enumerator, const wchar_t *sessio
     RELEASE(sessionControl);
   }
 
-  success = true;
+  success = 1;
 Exit:
   RELEASE(sessionControl);
   RELEASE(sessionSimpleVolume);

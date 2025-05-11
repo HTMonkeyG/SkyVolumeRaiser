@@ -2,40 +2,38 @@
 
 DWORD skyGamePID = -1;
 HANDLE hEvent;
-int undoResetFlag = 0;
-float previousVol = 0.;
-unsigned int hotkeyMod = 0
-  , hotkeyVK = 0
-  , undoTimeout = 0;
+Hotkey_t hotkey;
+i08 undoResetFlag = 0;
+f32 targetVol = 1.0
+  , previousVol = 0.0;
+u32 undoTimeout = 3000;
 
-void getArgvHotkey(int *pargc) {
-  wchar_t *s = GetCommandLineW()
-    , **wargv = CommandLineToArgvW(s, pargc);
-  
-  for (int i = 0; i < *pargc; i++) {
-    if (!wcscmp(wargv[i], L"-alt"))
-      hotkeyMod |= MOD_ALT;
-    else if (!wcscmp(wargv[i], L"-shift"))
-      hotkeyMod |= MOD_SHIFT;
-    else if (!wcscmp(wargv[i], L"-ctrl"))
-      hotkeyMod |= MOD_CONTROL;
-    else if (!memcmp(wargv[i], L"-vk", 3 * sizeof(wchar_t)))
-      hotkeyVK = wargv[i][3] & 0xFF;
-    else if (!wcscmp(wargv[i], L"-t") && i + 1 < *pargc)
-      swscanf(wargv[i + 1], L"%u", &undoTimeout);
-  }
+DWORD getPidOf(const wchar_t *exeName) {
+  PROCESSENTRY32W pe32;
+  HANDLE hProcessSnap;
+  BOOL bMore;
 
-  if (!undoTimeout)
-    undoTimeout = 3000;
-  if (!hotkeyVK) {
-    hotkeyMod = MOD_ALT | MOD_SHIFT;
-    hotkeyVK = 'R';
+  hProcessSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+  if (hProcessSnap == INVALID_HANDLE_VALUE)
+    return PID_INVALID;
+  pe32.dwSize = sizeof(pe32);
+  bMore = Process32FirstW(hProcessSnap, &pe32);
+
+  while (bMore) {
+    if (!wcscmp(pe32.szExeFile, exeName)) {
+      CloseHandle(hProcessSnap);
+      return pe32.th32ProcessID;
+    }
+    bMore = Process32NextW(hProcessSnap, &pe32);
   }
+  CloseHandle(hProcessSnap);
+  return PID_INVALID;
 }
 
-bool doSetVolume(const wchar_t *exe, float *prevVol, float volume) {
+i08 doSetVolume(DWORD pid, f32 *prevVol, f32 volume) {
   IMMDevice *device = NULL;
   IAudioSessionEnumerator *sessionEnumerator = NULL;
+  i08 r = 0;
 
   // Get the default device
   if (!getDefaultDevice(&device))
@@ -44,83 +42,121 @@ bool doSetVolume(const wchar_t *exe, float *prevVol, float volume) {
   if (!getAudioSessionEnumerator(device, &sessionEnumerator))
     goto Exit;
 
-  setSessionVolume(sessionEnumerator, exe, prevVol, volume);
-  printf("\nVolume set to %f\n", volume);
+  setProcessVolume(sessionEnumerator, pid, prevVol, volume);
+  log("Set volume of %lu to %f\n", pid, volume);
+  r = 1;
 
 Exit:
   RELEASE(device);
   RELEASE(sessionEnumerator);
+  return r;
 }
 
 DWORD WINAPI hotkeyThread(LPVOID lpParam) {
   MSG msg;
-  DWORD timerID;
+  HWND hForegroundWnd;
+  DWORD timerID, processId;
+  wchar_t windowName[MAX_PATH];
 
-  // Alt + Shift + R
-  if (!RegisterHotKey(NULL, 1, hotkeyMod, hotkeyVK))
+  // Register hotkey.
+  if (!registerHotkeyWith(NULL, 1, &hotkey))
     return 1;
+  // Registered hotkey successfully.
   SetEvent(hEvent);
 
   while (GetMessageW(&msg, NULL, 0, 0)) {
-    switch (msg.message) {
-      case WM_HOTKEY:
-        if (!undoResetFlag) {
-          // Ensure the game window is active
-          DWORD processId;
-          GetWindowThreadProcessId(GetForegroundWindow(), &processId);
-          if (skyGamePID == -1 || skyGamePID != processId)
-            continue;
-          doSetVolume(L"Sky.exe", &previousVol, 1.0f);
-          undoResetFlag = 1;
-          timerID = SetTimer(NULL, 1, 3000, NULL);
-          break;
-        } else
-          doSetVolume(L"Sky.exe", &previousVol, previousVol);
-      case WM_TIMER:
-        KillTimer(NULL, timerID);
-        undoResetFlag = 0;
-        break;
-      case WM_APP1:
-        goto Exit;
-    }
+    if (msg.message == WM_HOTKEY && msg.wParam == 1) {
+      // Get foreground window and reset pid.
+      hForegroundWnd = GetForegroundWindow();
+      processId = 0;
+      if (
+        !GetWindowTextW(hForegroundWnd, windowName, MAX_PATH)
+        || wcscmp(windowName, GAME_WND_NAME)
+        || !GetWindowThreadProcessId(hForegroundWnd, &processId)
+      )
+        // Foreground window is not the game window, or get pid failed.
+        // The global pid is not used because it may be need to reset 
+        // different windows with the same name.
+        continue;
+
+      if (!undoResetFlag) {
+        // Reset volume.
+        doSetVolume(processId, &previousVol, 1.0f);
+        // Set undo flag and timer.
+        undoResetFlag = 1;
+        SetTimer(NULL, 1, 3000, NULL);
+      } else
+        // If pressed hotkey again when the timer is not set, undo the
+        // previous volume reset.
+        doSetVolume(processId, &previousVol, previousVol);
+    } else if (msg.message == WM_TIMER && msg.wParam == 1) {
+      // Timed out and the shortcut key was not pressed, clear the flag.
+      KillTimer(NULL, timerID);
+      undoResetFlag = 0;
+    } else if (msg.message == WM_USER_EXIT)
+      PostQuitMessage(0);
+    else if (msg.message == WM_QUIT)
+      break;
   }
 
-Exit:
   UnregisterHotKey(NULL, 1);
-  return 0;
+  return msg.wParam;
 }
 
-int main(int argc, char *argv_[]) {
+void cfgCallback(const wchar_t *key, const wchar_t *value, void *pUser) {
+  if (!wcscmp(key, L"hotkey_volume"))
+    buildHotkeyFrom(value, &hotkey);
+  else if (!wcscmp(key, L"target_volume"))
+    targetVol = clamp(wcstof(value, NULL), 0, 1);
+  else if (!wcscmp(key, L"undo_timeout_ms"))
+    undoTimeout = clamp(wcstol(value, NULL, 0), 0, 0x7FFFFFFF);
+}
+
+i32 WinMain(
+  HINSTANCE hInstance,
+  HINSTANCE hPrevInstance,
+  LPSTR lpCmdLine,
+  int nShowCmd
+) {
+  wchar_t cfgPath[MAX_PATH]
+    , *dir;
+  FILE *file;
   HRESULT hr;
   DWORD threadId;
   HANDLE hThread, mutexHandle;
-  wchar_t buf[MAX_PATH];
-  int ret = 0;
+  i32 ret = 0;
 
+#ifndef DEBUG_CONSOLE
   FreeConsole();
+#endif
 
-  // Only one instance can be running
+  // Only one instance can be running.
   mutexHandle = CreateMutexW(NULL, TRUE, L"__SKY_VOLRST__");
   if (GetLastError() == ERROR_ALREADY_EXISTS) {
-    MessageBoxW(
-      NULL,
-      L"An instance has already running.",
-      L"Instance exists",
-      MB_ICONERROR
-    );
+    MBError(L"实例已存在", 0);
     return 1;
   }
 
-  if (Proc_detectRunAsAdmin(&argc))
-    return 1;
+  if (!GetModuleFileNameW(hInstance, cfgPath, MAX_PATH))
+    goto DefaultCfg;
+  dir = wcsrchr(cfgPath, L'\\');
+  if (!dir)
+    goto DefaultCfg;
+  *dir = 0;
+  wcscat_s(cfgPath, MAX_PATH, L"\\skyvol-config.txt");
+  file = _wfopen(cfgPath, L"r");
+  if (!file)
+    goto DefaultCfg;
+  buildConfigFrom(file, cfgCallback, NULL);
+  fclose(file);
 
-  getArgvHotkey(&argc);
+DefaultCfg:
+  // Read config failed, use default.
 
-  // Initialise COM
+  // Initialise COM.
   hr = CoInitializeEx(NULL, COINIT_MULTITHREADED);
   if (FAILED(hr)) {
-    _swprintf(buf, L"Unable to initialize COM: %x\n", hr);
-    MessageBoxW(NULL, buf, L"ERROR", MB_ICONERROR);
+    MBError(L"初始化COM失败", 0);
     ret = 1;
     goto Exit;
   }
@@ -128,26 +164,28 @@ int main(int argc, char *argv_[]) {
   hEvent = CreateEventW(NULL, 1, 0, L"__HOTKEY_REG__");
   hThread = CreateThread(NULL, 0, hotkeyThread, 0, 0, &threadId);
   if (!hThread) {
-    MessageBoxW(NULL, L"Create thread failed", L"ERROR", MB_ICONERROR);
+    MBError(L"创建子线程失败", 0);
     ret = 1;
     goto Exit;
   }
 
   if (WaitForSingleObject(hEvent, 100) != WAIT_OBJECT_0) {
-    MessageBoxW(NULL, L"Register hotkey failed", L"ERROR", MB_ICONERROR);
+    MBError(L"注册快捷键失败", 0);
     ret = 1;
     goto Exit;
   }
 
-  if (Proc_getRunningState(L"Sky.exe") == -1)
-    MessageBoxW(NULL, L"Game is not running", L"ERROR", MB_ICONERROR);
+  if (getPidOf(GAME_PROC_NAME) == PID_INVALID)
+    // Check pid in order to avoid the situation that the window is not
+    // created but the process is started.
+    MBError(L"游戏未运行", 0);
 
-  // Waiting for the game
-  while ((skyGamePID = Proc_getRunningState(L"Sky.exe")) != -1)
+  // Waiting for the game.
+  while ((skyGamePID = getPidOf(GAME_PROC_NAME)) != PID_INVALID)
     Sleep(500);
 
-  // Terminate thread
-  PostThreadMessageW(threadId, WM_APP1, 0, 0);
+  // Terminate thread.
+  PostThreadMessageW(threadId, WM_USER_EXIT, 0, 0);
   WaitForSingleObject(hThread, INFINITE);
 
 Exit:

@@ -3,18 +3,22 @@
 #include <audiopolicy.h>
 #include <endpointvolume.h>
 #include <strsafe.h>
+#include <wchar.h>
 
-typedef enum {
-  false = 0,
-  true = 1
-} __boolean;
+#include "macros.h"
 
-#define bool __boolean
+#define RELEASE(v) (((v) != NULL) ? ((v)->lpVtbl->Release(v), (v) = NULL) : NULL)
+#define clamp(x, a, b) ((x) > (a) ? (x) < (b) ? (x) : (b) : (a))
 
-#define RELEASE(v) ((v != NULL) && (v->lpVtbl->Release(v), v = NULL))
-#define clamp(x, a, b) (x > a ? x < b ? x : b : a)
-
-bool getDefaultDevice(IMMDevice **device);
-bool getAudioSessionEnumerator(IMMDevice *device, IAudioSessionEnumerator **sessionEnumerator);
-bool getSessionName(IAudioSessionControl *sessionControl, wchar_t *name);
-bool setSessionVolume(IAudioSessionEnumerator *enumerator, const wchar_t *sessionName, float *prevVol, float targetVol);
+i08 getDefaultDevice(IMMDevice **device);
+i08 getAudioSessionEnumerator(
+  IMMDevice *device,
+  IAudioSessionEnumerator **sessionEnumerator
+);
+i08 getSessionPid(IAudioSessionControl *sessionControl, DWORD *pid);
+i08 setProcessVolume(
+  IAudioSessionEnumerator *enumerator,
+  DWORD processId,
+  float *prevVol,
+  float targetVol
+);
