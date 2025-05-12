@@ -10,6 +10,5 @@
 #define MBError(text, type) (MessageBoxW(NULL, text, L"Error", MB_ICONERROR | type))
 
 #define WM_USER_EXIT (0x8000 + 1)
-#define PID_INVALID (0xFFFFFFFF)
 #define GAME_PROC_NAME (L"Sky.exe")
 #define GAME_WND_NAME (L"光·遇")

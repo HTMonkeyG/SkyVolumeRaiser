@@ -1,6 +1,6 @@
 #include "main.h"
 
-DWORD skyGamePID = -1;
+DWORD skyGamePid = PID_ILLEGAL;
 HANDLE hEvent;
 Hotkey_t hotkey;
 i08 undoResetFlag = 0;
@@ -15,7 +15,7 @@ DWORD getPidOf(const wchar_t *exeName) {
 
   hProcessSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
   if (hProcessSnap == INVALID_HANDLE_VALUE)
-    return PID_INVALID;
+    return PID_ILLEGAL;
   pe32.dwSize = sizeof(pe32);
   bMore = Process32FirstW(hProcessSnap, &pe32);
 
@@ -27,7 +27,7 @@ DWORD getPidOf(const wchar_t *exeName) {
     bMore = Process32NextW(hProcessSnap, &pe32);
   }
   CloseHandle(hProcessSnap);
-  return PID_INVALID;
+  return PID_ILLEGAL;
 }
 
 i08 doSetVolume(DWORD pid, f32 *prevVol, f32 volume) {
@@ -52,10 +52,34 @@ Exit:
   return r;
 }
 
+// Send WM_KEYUP to the game window.
+void sendKeyUpMsg(HWND hWnd, Hotkey_t *hk) {
+  if (hk->mod | MOD_ALT) {
+    // Left alt.
+    SendMessageW(hWnd, WM_KEYUP, VK_MENU, 0xC0380001);
+    // Right alt.
+    SendMessageW(hWnd, WM_KEYUP, VK_MENU, 0xC1380001);
+  }
+  if (hk->mod | MOD_SHIFT) {
+    // Left shift.
+    SendMessageW(hWnd, WM_KEYUP, VK_SHIFT, 0xC02A0001);
+    // Right shift.
+    SendMessageW(hWnd, WM_KEYUP, VK_SHIFT, 0xC0360001);
+  }
+  if (hk->mod | MOD_CONTROL) {
+    // Left ctrl.
+    SendMessageW(hWnd, WM_KEYUP, VK_CONTROL, 0xC01D0001);
+    // Right ctrl.
+    SendMessageW(hWnd, WM_KEYUP, VK_CONTROL, 0xC11D0001);
+  }
+}
+
 DWORD WINAPI hotkeyThread(LPVOID lpParam) {
   MSG msg;
   HWND hForegroundWnd;
-  DWORD timerID, processId;
+  DWORD timerId = 0
+    , processId
+    , lastTargetPid = PID_ILLEGAL;
   wchar_t windowName[MAX_PATH];
 
   // Register hotkey.
@@ -68,7 +92,7 @@ DWORD WINAPI hotkeyThread(LPVOID lpParam) {
     if (msg.message == WM_HOTKEY && msg.wParam == 1) {
       // Get foreground window and reset pid.
       hForegroundWnd = GetForegroundWindow();
-      processId = 0;
+      processId = PID_ILLEGAL;
       if (
         !GetWindowTextW(hForegroundWnd, windowName, MAX_PATH)
         || wcscmp(windowName, GAME_WND_NAME)
@@ -79,19 +103,21 @@ DWORD WINAPI hotkeyThread(LPVOID lpParam) {
         // different windows with the same name.
         continue;
 
-      if (!undoResetFlag) {
+      if (lastTargetPid != processId || !undoResetFlag) {
+        lastTargetPid = processId;
         // Reset volume.
         doSetVolume(processId, &previousVol, targetVol);
         // Set undo flag and timer.
         undoResetFlag = 1;
-        SetTimer(NULL, 1, 3000, NULL);
+        timerId = SetTimer(NULL, timerId, 3000, NULL);
       } else
         // If pressed hotkey again when the timer is not set, undo the
         // previous volume reset.
         doSetVolume(processId, &previousVol, previousVol);
-    } else if (msg.message == WM_TIMER && msg.wParam == 1) {
+    } else if (msg.message == WM_TIMER) {
       // Timed out and the shortcut key was not pressed, clear the flag.
-      KillTimer(NULL, timerID);
+      KillTimer(NULL, timerId);
+      timerId = 0;
       undoResetFlag = 0;
     } else if (msg.message == WM_USER_EXIT)
       PostQuitMessage(0);
@@ -175,13 +201,13 @@ DefaultCfg:
     goto Exit;
   }
 
-  if (getPidOf(GAME_PROC_NAME) == PID_INVALID)
+  if (getPidOf(GAME_PROC_NAME) == PID_ILLEGAL)
     // Check pid in order to avoid the situation that the window is not
     // created but the process is started.
     MBError(L"游戏未运行", 0);
 
   // Waiting for the game.
-  while ((skyGamePID = getPidOf(GAME_PROC_NAME)) != PID_INVALID)
+  while ((skyGamePid = getPidOf(GAME_PROC_NAME)) != PID_ILLEGAL)
     Sleep(500);
 
   // Terminate thread.
