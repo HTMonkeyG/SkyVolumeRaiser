@@ -1,0 +1,17 @@
+{
+  "package_name": "sky-volume-keep",
+  "version": "0.1.0",
+  "game_edition": 1,
+  "mod_name": "SkyVolumeKeep",
+  "description": "Fix the issue of the volume of Sky's Cloud Music player.",
+  "main": "sky-volume-keep.dll",
+  "dependencies": {},
+  "keywords": [
+    "cloudmusic",
+    "volume",
+    "hook"
+  ],
+  "author": "HTMonkeyG",
+  "license": "MIT",
+  "website": ""
+}
