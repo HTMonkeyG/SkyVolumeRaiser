@@ -44,11 +44,11 @@ $(BIN_TARGET): $(C_OBJ) $(CPP_OBJ)
 	@$(CXX) $(CFLAGS) $^ -shared -o $@ $(LFLAGS)
 	@echo Done.
 
-$(DIST_DIR)/%.o: %.c $(CXX_HEADER)
+$(DIST_DIR)/%.o: %.c $(CXX_HEADER) $(VERSION_SCRIPT)
 	@echo Compiling file "$<" ...
 	@$(CC) $(CFLAGS) -c $< -o $@
 
-$(DIST_DIR)/%.o: %.cpp $(CXX_HEADER)
+$(DIST_DIR)/%.o: %.cpp $(CXX_HEADER) $(VERSION_SCRIPT)
 	@echo Compiling file "$<" ...
 	@$(CXX) $(CFLAGS) -c $< -o $@
 

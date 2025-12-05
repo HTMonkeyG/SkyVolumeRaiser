@@ -1,6 +1,6 @@
 #include <windows.h>
-
 #include "MinHook.h"
+
 #include "svr.h"
 
 HMODULE hDllNcmAudioPlayer = NULL;
