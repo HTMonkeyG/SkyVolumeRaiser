@@ -4,6 +4,7 @@
 #include "svr.h"
 
 HMODULE hDllNcmAudioPlayer = NULL;
+i08 gActive = 0;
 
 static DWORD WINAPI svrWaitForNcm(
   LPVOID lpParam
@@ -27,6 +28,10 @@ BOOL APIENTRY DllMain(
   LPVOID lpReserved
 ) {
   if (dwReason == DLL_PROCESS_ATTACH) {
+    if (!GetModuleHandleA("Sky.exe"))
+      return TRUE;
+
+    gActive = 1;
     MH_Initialize();
     CreateThread(
       NULL,
@@ -35,7 +40,7 @@ BOOL APIENTRY DllMain(
       NULL,
       0,
       NULL);
-  } else if (dwReason == DLL_PROCESS_DETACH) {
+  } else if (dwReason == DLL_PROCESS_DETACH && gActive) {
     MH_DisableHook(MH_ALL_HOOKS);
     MH_Uninitialize();
   }
