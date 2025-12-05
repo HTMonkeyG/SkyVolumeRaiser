@@ -1,4 +1,19 @@
+# Files
+
+# Wildcard files.
+*.a
+*.o
+*.dll
+*.exe
+*.bak
+*.ini
+test*
+
+# Folders
 .vscode/
 dist/
-
-*/disabled/
+pack/
+disabled/
+.VSCodeCounter/
+libraries/UGLHook
+libraries/imgui-1.91.9b
