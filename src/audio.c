@@ -172,7 +172,14 @@ i08 setProcessVolume(
     if (prevVol)
       *prevVol = volume;
 
-    // Set session volume to max
+    if (targetVol < 0 || targetVol > 1) {
+      // If an illegal value is given, then only read current volume, without
+      // set.
+      success = 1;
+      goto Exit;
+    }
+
+    // Set session volume.
     hr = sessionSimpleVolume->lpVtbl->SetMasterVolume(
       sessionSimpleVolume,
       targetVol,

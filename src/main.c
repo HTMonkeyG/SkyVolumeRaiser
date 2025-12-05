@@ -1,12 +1,15 @@
 #include "main.h"
 
-DWORD skyGamePid = PID_ILLEGAL;
 HANDLE hEvent;
 Hotkey_t hotkey;
-i08 undoResetFlag = 0;
 f32 targetVol = 1.0
-  , previousVol = 0.0;
+  , fadeInOutTime = 0.2;
 u32 undoTimeout = 3000;
+
+f32 lerp(f32 x, f32 a, f32 b) {
+  x = clamp(x, 0., 1.);
+  return a + x * (b - a);
+}
 
 DWORD getPidOf(const wchar_t *exeName) {
   PROCESSENTRY32W pe32;
@@ -35,16 +38,16 @@ i08 doSetVolume(DWORD pid, f32 *prevVol, f32 volume) {
   IAudioSessionEnumerator *sessionEnumerator = NULL;
   i08 r = 0;
 
-  // Get the default device
+  // Get the default device.
   if (!getDefaultDevice(&device))
     goto Exit;
-  // Get an AudioSessionEnumerator
+  // Get an AudioSessionEnumerator.
   if (!getAudioSessionEnumerator(device, &sessionEnumerator))
     goto Exit;
 
-  setProcessVolume(sessionEnumerator, pid, prevVol, volume);
+  if (setProcessVolume(sessionEnumerator, pid, prevVol, volume))
+    goto Exit;
   log("Set volume of %lu to %f\n", pid, volume);
-  r = 1;
 
 Exit:
   RELEASE(device);
@@ -77,10 +80,17 @@ void sendKeyUpMsg(HWND hWnd, Hotkey_t *hk) {
 DWORD WINAPI hotkeyThread(LPVOID lpParam) {
   MSG msg;
   HWND hForegroundWnd;
-  DWORD timerId = 0
-    , processId
-    , lastTargetPid = PID_ILLEGAL;
-  wchar_t windowName[MAX_PATH];
+  DWORD undoTimer = 0
+    , fadeTimer = 0
+    , lastTargetPid = PID_ILLEGAL
+    , processId;
+  i08 undoResetFlag = 0
+    , lastOperation = 0;
+  u32 frameInteval = 1000 / FADE_UPDATE_FREQ;
+  f32 previousVol = 0.0
+    , fadeCtrl = 0.0
+    , beginVol, endVol;
+  wchar_t windowName[8] = {0};
 
   // Register hotkey.
   if (!registerHotkeyWith(NULL, 1, &hotkey))
@@ -88,13 +98,17 @@ DWORD WINAPI hotkeyThread(LPVOID lpParam) {
   // Registered hotkey successfully.
   SetEvent(hEvent);
 
+  if (fadeInOutTime > frameInteval)
+    // Start the timer only when the fade time is effective.
+    fadeTimer = SetTimer(NULL, fadeTimer, frameInteval, NULL);
+
   while (GetMessageW(&msg, NULL, 0, 0)) {
     if (msg.message == WM_HOTKEY && msg.wParam == 1) {
       // Get foreground window and reset pid.
       hForegroundWnd = GetForegroundWindow();
       processId = PID_ILLEGAL;
       if (
-        !GetWindowTextW(hForegroundWnd, windowName, MAX_PATH)
+        !GetWindowTextW(hForegroundWnd, windowName, 7)
         || wcscmp(windowName, GAME_WND_NAME)
         || !GetWindowThreadProcessId(hForegroundWnd, &processId)
       )
@@ -105,20 +119,31 @@ DWORD WINAPI hotkeyThread(LPVOID lpParam) {
 
       if (lastTargetPid != processId || !undoResetFlag) {
         lastTargetPid = processId;
-        // Reset volume.
-        doSetVolume(processId, &previousVol, targetVol);
         // Set undo flag and timer.
         undoResetFlag = 1;
-        timerId = SetTimer(NULL, timerId, 3000, NULL);
-      } else
+        // Replace existing timer.
+        undoTimer = SetTimer(NULL, undoTimer, undoTimeout, NULL);
+        // Try to read current volume.
+        if (!fadeTimer || !doSetVolume(processId, &beginVol, -1))
+          // Directly set volume if no fade or get current volume failed.
+          lastOperation = doSetVolume(processId, &previousVol, targetVol);
+        else
+          // Or dispatch the volume to another timer for the fading.
+          fadeCtrl = 1.0;
+      } else if (!fadeTimer)
         // If pressed hotkey again when the timer is not set, undo the
         // previous volume reset.
         doSetVolume(processId, &previousVol, previousVol);
-    } else if (msg.message == WM_TIMER) {
+      else {
+
+      }
+    } else if (msg.message == WM_TIMER && msg.wParam == undoTimer) {
       // Timed out and the shortcut key was not pressed, clear the flag.
-      KillTimer(NULL, timerId);
-      timerId = 0;
+      KillTimer(NULL, undoTimer);
+      undoTimer = 0;
       undoResetFlag = 0;
+    } else if (msg.message == WM_TIMER && msg.wParam == fadeTimer) {
+      fadeCtrl += 1000 / FADE_UPDATE_FREQ;
     } else if (msg.message == WM_USER_EXIT)
       PostQuitMessage(0);
     else if (msg.message == WM_QUIT)
@@ -136,6 +161,8 @@ void cfgCallback(const wchar_t *key, const wchar_t *value, void *pUser) {
     targetVol = clamp(wcstof(value, NULL), 0, 1);
   else if (!wcscmp(key, L"undo_timeout_ms"))
     undoTimeout = clamp(wcstol(value, NULL, 0), 0, 0x7FFFFFFF);
+  else if (!wcscmp(key, L"fade_in_out_time"))
+    fadeInOutTime = clamp(wcstof(value, NULL), 0, 60) * 1000;
 }
 
 i32 WinMain(
@@ -148,7 +175,8 @@ i32 WinMain(
     , *dir;
   FILE *file;
   HRESULT hr;
-  DWORD threadId;
+  DWORD skyGamePid = PID_ILLEGAL
+    , threadId;
   HANDLE hThread, mutexHandle;
   i32 ret = 0;
 
@@ -163,7 +191,9 @@ i32 WinMain(
     return 1;
   }
 
+  // Read config file.
   if (!GetModuleFileNameW(hInstance, cfgPath, MAX_PATH))
+    // Read config failed, use default.
     goto DefaultCfg;
   dir = wcsrchr(cfgPath, L'\\');
   if (!dir)
@@ -177,8 +207,6 @@ i32 WinMain(
   fclose(file);
 
 DefaultCfg:
-  // Read config failed, use default.
-
   // Initialise COM.
   hr = CoInitializeEx(NULL, COINIT_MULTITHREADED);
   if (FAILED(hr)) {

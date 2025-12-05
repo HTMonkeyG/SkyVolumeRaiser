@@ -9,7 +9,7 @@ TARGET = skyvol-rst.exe
 BIN_TARGET = $(DIST_DIR)/$(TARGET)
 
 CC = gcc
-CC_PARAM = -Wall -Wno-implicit-function-declaration -Os -ffunction-sections -fdata-sections -Wl,--gc-sections -static -flto -s
+CC_PARAM = -Wall -Os -ffunction-sections -fdata-sections -Wl,--gc-sections -static -flto -s
 LINK_PARAM = -luuid -lole32 -loleaut32 -lpsapi
 
 $(BIN_TARGET):$(OBJ)
