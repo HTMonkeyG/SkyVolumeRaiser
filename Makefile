@@ -42,22 +42,22 @@ vpath %.cpp $(SRC_DIRS)
 
 .PHONY: all clean dll
 
-all: $(BIN_TARGET)
+all: $(DIST_DIR) $(BIN_TARGET)
 
 $(BIN_TARGET): $(C_OBJ) $(CPP_OBJ) $(RES_OBJ)
 	@echo Linking ...
 	@$(CXX) $(CFLAGS) $^ -o $@ $(LFLAGS)
 	@echo Done.
 
-$(DIST_DIR)/%.o: %.c $(CXX_HEADER)
+$(DIST_DIR)/%.o: %.c $(CXX_HEADER) $(DIST_DIR)
 	@echo Compiling file "$<" ...
 	@$(CC) $(CFLAGS) -c $< -o $@
 
-$(DIST_DIR)/%.o: %.cpp $(CXX_HEADER)
+$(DIST_DIR)/%.o: %.cpp $(CXX_HEADER) $(DIST_DIR)
 	@echo Compiling file "$<" ...
 	@$(CXX) $(CFLAGS) -c $< -o $@
 
-$(RES_OBJ): $(RESOURCES) dll
+$(RES_OBJ): $(RESOURCES) $(DIST_DIR) dll
 	@echo Building resources...
 	windres -i $(RES_SRC) -o $@
 
@@ -65,6 +65,10 @@ dll:
 	@echo Building dll...
 	$(MAKE) -C ./dll all
 
+$(DIST_DIR):
+	-@mkdir dist
+
 clean:
 	-@del .\dist\*.o
 	-@del .\dist\*.exe
+	-@$(MAKE) -C ./dll clean

@@ -36,26 +36,30 @@ LFLAGS += -L./libraries/MinHook -lMinHook
 vpath %.c $(SRC_DIRS)
 vpath %.cpp $(SRC_DIRS)
 
-.PHONY: all clean libs clean_libs clean_all
+.PHONY: all clean
 
-all: $(BIN_TARGET) MinHook
+all: $(DIST_DIR) $(BIN_TARGET) ./libraries/MinHook/libMinHook.a
 
 $(BIN_TARGET): $(C_OBJ) $(CPP_OBJ)
 	@echo Linking ...
 	@$(CXX) $(CFLAGS) $^ -shared -o $@ $(LFLAGS)
 	@echo Done.
 
-$(DIST_DIR)/%.o: %.c $(CXX_HEADER) $(VERSION_SCRIPT)
+$(DIST_DIR)/%.o: %.c $(CXX_HEADER) $(VERSION_SCRIPT) $(DIST_DIR)
 	@echo Compiling file "$<" ...
 	@$(CC) $(CFLAGS) -c $< -o $@
 
-$(DIST_DIR)/%.o: %.cpp $(CXX_HEADER) $(VERSION_SCRIPT)
+$(DIST_DIR)/%.o: %.cpp $(CXX_HEADER) $(VERSION_SCRIPT) $(DIST_DIR)
 	@echo Compiling file "$<" ...
 	@$(CXX) $(CFLAGS) -c $< -o $@
 
-MinHook:
-	$(MAKE) -C ./libraries/MinHook libMinHook.a
+./libraries/MinHook/libMinHook.a:
+	$(MAKE) -C ./libraries/MinHook
+
+$(DIST_DIR):
+	-@mkdir dist
 
 clean:
 	-@del .\dist\*.o
 	-@del .\dist\*.dll
+	-@$(MAKE) -s -C ./libraries/MinHook clean

@@ -1,3 +1,4 @@
+MAKEFLAGS += -s -j
 WINDRES:=$(CROSS_PREFIX)windres
 DLLTOOL:=$(CROSS_PREFIX)dlltool
 AR:=$(CROSS_PREFIX)ar
@@ -10,28 +11,20 @@ INCS:=-Isrc -Iinclude
 CFLAGS:=-masm=intel -Wall -Werror -std=c11
 LDFLAGS:=-Wl,-enable-stdcall-fixup -s -static-libgcc
 
-all: MinHook.dll libMinHook.dll.a libMinHook.a
+all: libMinHook.a
 
 -include $(DEPS)
 
 libMinHook.a: $(OBJS)
-	$(AR) r $@ $^
-libMinHook.dll.a: MinHook.dll dll_resources/MinHook.def
-	$(DLLTOOL) --dllname MinHook.dll --input-def dll_resources/MinHook.def --output-lib $@
-MinHook.dll: $(OBJS) dll_resources/MinHook.res dll_resources/MinHook.def
-	$(CCLD) -o $@ -shared $(LDFLAGS) $^
+	-@$(AR) rcs $@ $^
 
 .rc.res:
-	$(WINDRES) -o $@ --input-format=rc --output-format=coff $<
+	-@$(WINDRES) -o $@ --input-format=rc --output-format=coff $<
 .c.o:
-	$(CC) -o $@ -c -MMD -MP $(INCS) $(CFLAGS) $<
+	-@$(CC) -o $@ -c -MMD -MP $(INCS) $(CFLAGS) $<
 
 clean:
-	del src\*.o
-	del MinHook.dll
-	del libMinHook.dll.a
-	del libMinHook.a
-	del dll_resources\MinHook.res
+	-@del src\*.o
+	-@del libMinHook.a
 
 .PHONY: clean
-.SUFFIXES: .rc .res
