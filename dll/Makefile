@@ -23,10 +23,10 @@ CC = gcc
 CXX = g++
 
 # Params.
-CFLAGS = -O3 -ffunction-sections -fdata-sections -static -flto=auto -s -mavx -msse
-CFLAGS += -Wall -Wformat -Wno-unused-const-variable -Wno-unused-function -Wno-missing-braces
+CFLAGS = -O3 -ffunction-sections -fdata-sections -static -flto=auto -s
+CFLAGS += -Wall -Wformat
 CFLAGS += -I./src
-# Include HTML.
+# Include MinHook.
 CFLAGS += -I./libraries/MinHook/include
 
 LFLAGS = -Wl,--gc-sections,-O3,--as-needed,--version-script=$(VERSION_SCRIPT)

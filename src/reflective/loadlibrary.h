@@ -25,33 +25,23 @@
 // OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
 // POSSIBILITY OF SUCH DAMAGE.
 //===============================================================================================//
-
-#ifndef _REFLECTIVEDLLINJECTION_REFLECTIVEDLLINJECTION_H
-#define _REFLECTIVEDLLINJECTION_REFLECTIVEDLLINJECTION_H
-
+#ifndef _REFLECTIVEDLLINJECTION_LOADLIBRARYR_H
+#define _REFLECTIVEDLLINJECTION_LOADLIBRARYR_H
 //===============================================================================================//
+#include "reflective_injection.h"
 
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
+DWORD GetReflectiveLoaderOffset(
+  VOID *lpReflectiveDllBuffer);
 
-// we declare some common stuff in here...
+HMODULE WINAPI LoadLibraryR(
+  LPVOID lpBuffer,
+  DWORD dwLength);
 
-#define DLL_QUERY_HMODULE 6
-
-#define DEREF(name) *(UINT_PTR *)(name)
-#define DEREF_64(name) *(DWORD64 *)(name)
-#define DEREF_32(name) *(DWORD *)(name)
-#define DEREF_16(name) *(WORD *)(name)
-#define DEREF_8(name) *(BYTE *)(name)
-
-typedef ULONG_PTR (WINAPI *PFN_ReflectiveLoader)();
-typedef BOOL (WINAPI *PFN_DllMain)(
-  HINSTANCE, DWORD, LPVOID);
-
-#define DLLEXPORT __declspec(dllexport) 
-
-#define REFLECTIVEDLLINJECTION_CUSTOM_DLLMAIN
-#define REFLECTIVEDLLINJECTION_VIA_LOADREMOTELIBRARYR
+HANDLE WINAPI LoadRemoteLibraryR(
+  HANDLE hProcess,
+  LPVOID lpBuffer,
+  DWORD dwLength,
+  LPVOID lpParameter);
 
 //===============================================================================================//
 #endif
