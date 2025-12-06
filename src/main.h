@@ -15,6 +15,7 @@
 #define f64 double
 #define nil void
 
+#define svrText_AlreadyExists L"实例已存在"
 #define svrText_GameNotRunning L"游戏未运行"
 #define svrText_LoadResourceFailed L"加载资源失败"
 #define svrText_InjectFailed L"加载资源失败"

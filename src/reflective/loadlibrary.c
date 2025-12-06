@@ -194,7 +194,6 @@ HANDLE WINAPI LoadRemoteLibraryR(
   DWORD dwLength,
   LPVOID lpParameter
 ) {
-  BOOL bSuccess = FALSE;
   LPVOID lpRemoteLibraryBuffer = NULL;
   LPTHREAD_START_ROUTINE lpReflectiveLoader = NULL;
   HANDLE hThread = NULL;
@@ -232,7 +231,7 @@ HANDLE WINAPI LoadRemoteLibraryR(
     1024 * 1024,
     lpReflectiveLoader,
     lpParameter,
-    (DWORD)NULL,
+    0,
     &dwThreadId);
 
   return hThread;

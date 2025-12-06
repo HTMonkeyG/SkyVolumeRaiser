@@ -66,7 +66,14 @@ int main() {
 
   SetProcessDpiAwarenessContext(
     DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE);
-  
+
+  SetLastError(ERROR_SUCCESS);
+  CreateMutexW(NULL, FALSE, L"__SKY_VOLRST__");
+  if (GetLastError() == ERROR_ALREADY_EXISTS) {
+    svrMessageBoxError(svrText_AlreadyExists, 0);
+    goto ErrRet;
+  }
+
   gamePid = svrGetPid(L"Sky.exe");
   if (gamePid == PID_ILLEGAL) {
     // Check pid in order to avoid the situation that the window is not
