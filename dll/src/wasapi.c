@@ -1,14 +1,12 @@
 #define COBJMACROS
 
 #include <windows.h>
+#include <initguid.h>
 #include <mmdeviceapi.h>
 #include <audiopolicy.h>
 #include <endpointvolume.h>
 
 #include "svr.h"
-
-f32 gNcmVolume = 1.0f
-  , gMajorVolume = 1.0f;
 
 f32 svrGetMajorVolume(
   i32 *mute

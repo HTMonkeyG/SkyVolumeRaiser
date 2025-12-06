@@ -1,6 +1,10 @@
 #ifndef __SVR_H__
 #define __SVR_H__
 
+// Comment this line if want to disable duplicate instance check.
+#define svrDuplicateCheck
+
+// Type aliases.
 #define i8 char
 #define i08 char
 #define u8 unsigned char
@@ -15,6 +19,7 @@
 #define f64 double
 #define nil void
 
+// COM release function.
 #define svrComRelease(v) (((v) != NULL) ? ((v)->lpVtbl->Release(v), (v) = NULL) : NULL)
 
 extern HMODULE hDllNcmAudioPlayer;

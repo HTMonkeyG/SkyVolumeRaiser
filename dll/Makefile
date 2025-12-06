@@ -30,6 +30,7 @@ CFLAGS += -I./src
 CFLAGS += -I./libraries/MinHook/include
 
 LFLAGS = -Wl,--gc-sections,-O3,--as-needed,--version-script=$(VERSION_SCRIPT)
+LFLAGS += -lole32
 LFLAGS += -L./libraries/MinHook -lMinHook
 
 vpath %.c $(SRC_DIRS)

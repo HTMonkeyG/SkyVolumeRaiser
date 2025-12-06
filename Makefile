@@ -31,7 +31,7 @@ CC = gcc
 CXX = g++
 
 # Params.
-CFLAGS = -O3 -ffunction-sections -fdata-sections -static -flto=auto -s
+CFLAGS = -O3 -ffunction-sections -fdata-sections -static -flto=auto -s -mwindows
 CFLAGS += -Wall -Wformat
 CFLAGS += -I./src
 
@@ -40,7 +40,7 @@ LFLAGS = -Wl,--gc-sections,-O3,--as-needed
 vpath %.c $(SRC_DIRS)
 vpath %.cpp $(SRC_DIRS)
 
-.PHONY: all clean
+.PHONY: all clean dll
 
 all: $(BIN_TARGET)
 
@@ -57,11 +57,11 @@ $(DIST_DIR)/%.o: %.cpp $(CXX_HEADER)
 	@echo Compiling file "$<" ...
 	@$(CXX) $(CFLAGS) -c $< -o $@
 
-$(RES_OBJ): $(RESOURCES) $(DLL_BIN)
+$(RES_OBJ): $(RESOURCES) dll
 	@echo Building resources...
 	windres -i $(RES_SRC) -o $@
 
-$(DLL_BIN):
+dll:
 	@echo Building dll...
 	$(MAKE) -C ./dll all
 
