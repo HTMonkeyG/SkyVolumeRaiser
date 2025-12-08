@@ -40,8 +40,13 @@ static u64 hook_WasApi_SetMasterVolume(
   void *a1,
   f32 a2
 ) {
+  f32 volume = 1.0f;
+
   // Ignore all SetMasterVolume requests.
-  return fn_Wasapi_SetMasterVolume(a1, svrGetMajorVolume(NULL));
+  if (!svrGetProcessVolume(GetCurrentProcessId(), &volume))
+    volume = 1.0f;
+
+  return fn_Wasapi_SetMasterVolume(a1, volume);
 }
 
 void svrInstallHooks() {

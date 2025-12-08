@@ -19,15 +19,13 @@
 #define f64 double
 #define nil void
 
-// COM release function.
-#define svrComRelease(v) (((v) != NULL) ? ((v)->lpVtbl->Release(v), (v) = NULL) : NULL)
-
 extern HMODULE hDllNcmAudioPlayer;
 
 void svrInstallHooks();
 void svrRemoveHooks();
 
-f32 svrGetMajorVolume(
-  i32 *mute);
+i32 svrGetProcessVolume(
+  DWORD pid,
+  f32 *volume);
 
 #endif
